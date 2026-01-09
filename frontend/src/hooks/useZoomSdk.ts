@@ -46,6 +46,8 @@ export function useZoomSdk() {
             'getMeetingParticipants',
             'onParticipantChange',
             'sendMessageToChat',
+            'sendMessage',
+            'onMessage',
           ],
         });
 
@@ -70,9 +72,9 @@ export function useZoomSdk() {
           userContext: userContext as UserContext,
         }));
 
-        // Fetch initial participant list for all users in meeting
-        if (isInMeeting) {
-          await fetchParticipants();
+        // Fetch initial participant list (only hosts can fetch, then broadcast to others)
+        if (isInMeeting && isHost) {
+          await fetchAndBroadcastParticipants();
         }
       } catch (error) {
         console.error('Failed to initialize Zoom SDK:', error);
@@ -86,32 +88,70 @@ export function useZoomSdk() {
     initializeSdk();
   }, []);
 
-  // Listen for participant changes
+  // Listen for participant changes (host only - then broadcasts to others)
   useEffect(() => {
-    if (!state.isConfigured || !state.isInMeeting) return;
+    if (!state.isConfigured || !state.isInMeeting || !state.isHost) return;
 
     const handleParticipantChange = async () => {
-      console.log('Participant changed, refreshing list...');
-      await fetchParticipants();
+      console.log('Participant changed, refreshing and broadcasting list...');
+      await fetchAndBroadcastParticipants();
     };
 
     zoomSdk.onParticipantChange(handleParticipantChange);
+  }, [state.isConfigured, state.isInMeeting, state.isHost]);
 
-    // Note: Zoom SDK doesn't provide a way to remove listeners,
-    // but the component will unmount when the app closes
+  // Listen for participant list broadcasts (non-hosts receive from host)
+  useEffect(() => {
+    if (!state.isConfigured || !state.isInMeeting) return;
+
+    const handleMessage = (event: { timestamp: number; payload: Record<string, unknown> }) => {
+      try {
+        const data = event.payload;
+        if (data.type === 'participant_list_broadcast') {
+          console.log('Received participant list broadcast');
+          setState(prev => ({
+            ...prev,
+            participants: data.participants as Participant[],
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to handle message:', error);
+      }
+    };
+
+    zoomSdk.onMessage(handleMessage);
   }, [state.isConfigured, state.isInMeeting]);
 
-  // Fetch participants
-  const fetchParticipants = useCallback(async () => {
+  // Fetch participants and broadcast to all app instances
+  const fetchAndBroadcastParticipants = useCallback(async () => {
     try {
       const response = await zoomSdk.getMeetingParticipants();
+      const participantList = response.participants as Participant[];
+
       setState(prev => ({
         ...prev,
-        participants: response.participants as Participant[],
+        participants: participantList,
       }));
+
+      // Broadcast to all app instances so non-hosts get the list
+      try {
+        const payload = {
+          type: 'participant_list_broadcast',
+          participants: participantList.map(p => ({
+            participantUUID: p.participantUUID,
+            screenName: p.screenName,
+            role: p.role,
+          })),
+        };
+        await zoomSdk.sendMessage({
+          payload: payload as Parameters<typeof zoomSdk.sendMessage>[0]['payload'],
+        });
+        console.log('Broadcast participant list to all app instances');
+      } catch (broadcastError) {
+        console.error('Failed to broadcast participants:', broadcastError);
+      }
     } catch (error) {
       console.error('Failed to fetch participants:', error);
-      // Don't set error state, just log - participant access may be restricted
     }
   }, []);
 
@@ -148,7 +188,7 @@ export function useZoomSdk() {
 
   return {
     ...state,
-    fetchParticipants,
+    fetchParticipants: fetchAndBroadcastParticipants,
     broadcastMessage,
     sendInvitationToAll,
     sendToChat,
