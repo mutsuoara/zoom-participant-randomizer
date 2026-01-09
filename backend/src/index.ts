@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.js';
 import healthRoutes from './routes/health.js';
+import participantsRoutes from './routes/participants.js';
 
 // Load env from parent directory (try multiple locations)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -60,6 +61,7 @@ app.use(session({
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api', healthRoutes);
+app.use('/api/participants', participantsRoutes);
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import zoomSdk from '@zoom/appssdk';
 
 export interface Participant {
@@ -20,8 +20,17 @@ export interface ZoomSdkState {
   isHost: boolean;
   userContext: UserContext | null;
   participants: Participant[];
+  meetingUUID: string | null;
   error: string | null;
 }
+
+// Get the API base URL
+const getApiBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  return '';
+};
 
 export function useZoomSdk() {
   const [state, setState] = useState<ZoomSdkState>({
@@ -30,8 +39,72 @@ export function useZoomSdk() {
     isHost: false,
     userContext: null,
     participants: [],
+    meetingUUID: null,
     error: null,
   });
+
+  const meetingUUIDRef = useRef<string | null>(null);
+  const isHostRef = useRef<boolean>(false);
+
+  // Sync participants to server (host only)
+  const syncParticipantsToServer = useCallback(async (participants: Participant[]) => {
+    if (!meetingUUIDRef.current) return;
+
+    try {
+      await fetch(`${getApiBaseUrl()}/api/participants/${meetingUUIDRef.current}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          participants: participants.map(p => ({
+            participantUUID: p.participantUUID,
+            screenName: p.screenName,
+            role: p.role,
+          })),
+        }),
+      });
+      console.log('Synced participants to server');
+    } catch (error) {
+      console.error('Failed to sync participants to server:', error);
+    }
+  }, []);
+
+  // Fetch participants from server (non-hosts)
+  const fetchParticipantsFromServer = useCallback(async () => {
+    if (!meetingUUIDRef.current) return;
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/participants/${meetingUUIDRef.current}`);
+      const data = await response.json();
+
+      if (data.participants && data.participants.length > 0) {
+        setState(prev => ({
+          ...prev,
+          participants: data.participants as Participant[],
+        }));
+        console.log('Fetched participants from server:', data.participants.length);
+      }
+    } catch (error) {
+      console.error('Failed to fetch participants from server:', error);
+    }
+  }, []);
+
+  // Fetch participants from Zoom and sync to server (host only)
+  const fetchAndSyncParticipants = useCallback(async () => {
+    try {
+      const response = await zoomSdk.getMeetingParticipants();
+      const participantList = response.participants as Participant[];
+
+      setState(prev => ({
+        ...prev,
+        participants: participantList,
+      }));
+
+      // Sync to server for non-hosts to fetch
+      await syncParticipantsToServer(participantList);
+    } catch (error) {
+      console.error('Failed to fetch participants:', error);
+    }
+  }, [syncParticipantsToServer]);
 
   // Initialize Zoom SDK
   useEffect(() => {
@@ -39,15 +112,13 @@ export function useZoomSdk() {
       console.log('Starting Zoom SDK initialization...');
 
       try {
-        // Start with minimal capabilities
         const configResponse = await zoomSdk.config({
           capabilities: [
             'getUserContext',
             'getMeetingParticipants',
+            'getMeetingUUID',
             'onParticipantChange',
             'sendMessageToChat',
-            'sendMessage',
-            'onMessage',
           ],
         });
 
@@ -57,6 +128,18 @@ export function useZoomSdk() {
         // Get user context to check role
         const userContext = await zoomSdk.getUserContext();
         const isHost = userContext.role === 'host' || userContext.role === 'coHost';
+        isHostRef.current = isHost;
+
+        // Get meeting UUID
+        let meetingUUID: string | null = null;
+        try {
+          const meetingContext = await zoomSdk.getMeetingUUID();
+          meetingUUID = meetingContext.meetingUUID;
+          meetingUUIDRef.current = meetingUUID;
+          console.log('Meeting UUID:', meetingUUID);
+        } catch (e) {
+          console.error('Failed to get meeting UUID:', e);
+        }
 
         // Get running context
         const runningContext = configResponse.runningContext;
@@ -69,13 +152,10 @@ export function useZoomSdk() {
           isConfigured: true,
           isInMeeting,
           isHost,
+          meetingUUID,
           userContext: userContext as UserContext,
         }));
 
-        // Fetch initial participant list (only hosts can fetch, then broadcast to others)
-        if (isInMeeting && isHost) {
-          await fetchAndBroadcastParticipants();
-        }
       } catch (error) {
         console.error('Failed to initialize Zoom SDK:', error);
         setState(prev => ({
@@ -88,90 +168,42 @@ export function useZoomSdk() {
     initializeSdk();
   }, []);
 
-  // Listen for participant changes (host only - then broadcasts to others)
-  // Also periodically broadcast so late-joining app instances receive the list
+  // Host: Fetch participants and sync to server periodically
   useEffect(() => {
-    if (!state.isConfigured || !state.isInMeeting || !state.isHost) return;
+    if (!state.isConfigured || !state.isInMeeting || !state.isHost || !state.meetingUUID) return;
 
+    // Initial fetch
+    fetchAndSyncParticipants();
+
+    // Listen for participant changes
     const handleParticipantChange = async () => {
-      console.log('Participant changed, refreshing and broadcasting list...');
-      await fetchAndBroadcastParticipants();
+      console.log('Participant changed, refreshing...');
+      await fetchAndSyncParticipants();
     };
-
     zoomSdk.onParticipantChange(handleParticipantChange);
 
-    // Periodic broadcast every 5 seconds for late-joining app instances
-    const intervalId = setInterval(async () => {
-      console.log('Periodic participant broadcast...');
-      await fetchAndBroadcastParticipants();
+    // Periodic sync every 5 seconds
+    const intervalId = setInterval(() => {
+      fetchAndSyncParticipants();
     }, 5000);
 
     return () => clearInterval(intervalId);
-  }, [state.isConfigured, state.isInMeeting, state.isHost]);
+  }, [state.isConfigured, state.isInMeeting, state.isHost, state.meetingUUID, fetchAndSyncParticipants]);
 
-  // Listen for participant list broadcasts (non-hosts receive from host)
+  // Non-host: Poll server for participants
   useEffect(() => {
-    if (!state.isConfigured || !state.isInMeeting) return;
+    if (!state.isConfigured || !state.isInMeeting || state.isHost || !state.meetingUUID) return;
 
-    const handleMessage = (event: { timestamp: number; payload: Record<string, unknown> }) => {
-      try {
-        const data = event.payload;
-        if (data.type === 'participant_list_broadcast') {
-          console.log('Received participant list broadcast');
-          setState(prev => ({
-            ...prev,
-            participants: data.participants as Participant[],
-          }));
-        }
-      } catch (error) {
-        console.error('Failed to handle message:', error);
-      }
-    };
+    // Initial fetch
+    fetchParticipantsFromServer();
 
-    zoomSdk.onMessage(handleMessage);
-  }, [state.isConfigured, state.isInMeeting]);
+    // Poll every 3 seconds
+    const intervalId = setInterval(() => {
+      fetchParticipantsFromServer();
+    }, 3000);
 
-  // Fetch participants and broadcast to all app instances
-  const fetchAndBroadcastParticipants = useCallback(async () => {
-    try {
-      const response = await zoomSdk.getMeetingParticipants();
-      const participantList = response.participants as Participant[];
-
-      setState(prev => ({
-        ...prev,
-        participants: participantList,
-      }));
-
-      // Broadcast to all app instances so non-hosts get the list
-      try {
-        const payload = {
-          type: 'participant_list_broadcast',
-          participants: participantList.map(p => ({
-            participantUUID: p.participantUUID,
-            screenName: p.screenName,
-            role: p.role,
-          })),
-        };
-        await zoomSdk.sendMessage({
-          payload: payload as Parameters<typeof zoomSdk.sendMessage>[0]['payload'],
-        });
-        console.log('Broadcast participant list to all app instances');
-      } catch (broadcastError) {
-        console.error('Failed to broadcast participants:', broadcastError);
-      }
-    } catch (error) {
-      console.error('Failed to fetch participants:', error);
-    }
-  }, []);
-
-  // Send message to all app instances
-  const broadcastMessage = useCallback(async (data: { [key: string]: string | number | boolean | null | object }) => {
-    try {
-      await zoomSdk.sendMessage({ payload: data as Parameters<typeof zoomSdk.sendMessage>[0]['payload'] });
-    } catch (error) {
-      console.error('Failed to broadcast message:', error);
-    }
-  }, []);
+    return () => clearInterval(intervalId);
+  }, [state.isConfigured, state.isInMeeting, state.isHost, state.meetingUUID, fetchParticipantsFromServer]);
 
   // Send app invitation to all participants
   const sendInvitationToAll = useCallback(async () => {
@@ -197,8 +229,7 @@ export function useZoomSdk() {
 
   return {
     ...state,
-    fetchParticipants: fetchAndBroadcastParticipants,
-    broadcastMessage,
+    fetchParticipants: fetchAndSyncParticipants,
     sendInvitationToAll,
     sendToChat,
   };
