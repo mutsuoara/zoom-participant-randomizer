@@ -90,25 +90,11 @@ function App() {
           isHost={isHost}
         />
 
-        {/* Randomize Button - Host/Co-Host Only */}
-        {isHost && (
-          <RandomizeButton
-            onRandomize={randomize}
-            disabled={participants.length < 2}
-          />
-        )}
-
-        {/* Not Host Message */}
-        {!isHost && (
-          <div className="mt-4 p-3 bg-gray-100 rounded-lg text-center">
-            <p className="text-gray-600 text-sm">
-              Only the host or co-host can randomize participants.
-            </p>
-            <p className="text-gray-500 text-xs mt-1">
-              You'll see the results when they randomize.
-            </p>
-          </div>
-        )}
+        {/* Randomize Button - Available to all participants */}
+        <RandomizeButton
+          onRandomize={randomize}
+          disabled={participants.length < 2}
+        />
 
         {/* Randomized Order */}
         {randomizedOrder && (

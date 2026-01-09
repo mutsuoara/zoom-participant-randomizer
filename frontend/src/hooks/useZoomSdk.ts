@@ -70,8 +70,8 @@ export function useZoomSdk() {
           userContext: userContext as UserContext,
         }));
 
-        // Fetch initial participant list if host/co-host
-        if (isHost && isInMeeting) {
+        // Fetch initial participant list for all users in meeting
+        if (isInMeeting) {
           await fetchParticipants();
         }
       } catch (error) {
@@ -88,7 +88,7 @@ export function useZoomSdk() {
 
   // Listen for participant changes
   useEffect(() => {
-    if (!state.isConfigured || !state.isHost) return;
+    if (!state.isConfigured || !state.isInMeeting) return;
 
     const handleParticipantChange = async () => {
       console.log('Participant changed, refreshing list...');
@@ -99,7 +99,7 @@ export function useZoomSdk() {
 
     // Note: Zoom SDK doesn't provide a way to remove listeners,
     // but the component will unmount when the app closes
-  }, [state.isConfigured, state.isHost]);
+  }, [state.isConfigured, state.isInMeeting]);
 
   // Fetch participants
   const fetchParticipants = useCallback(async () => {
