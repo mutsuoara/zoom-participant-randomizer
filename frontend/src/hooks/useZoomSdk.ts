@@ -89,6 +89,7 @@ export function useZoomSdk() {
   }, []);
 
   // Listen for participant changes (host only - then broadcasts to others)
+  // Also periodically broadcast so late-joining app instances receive the list
   useEffect(() => {
     if (!state.isConfigured || !state.isInMeeting || !state.isHost) return;
 
@@ -98,6 +99,14 @@ export function useZoomSdk() {
     };
 
     zoomSdk.onParticipantChange(handleParticipantChange);
+
+    // Periodic broadcast every 5 seconds for late-joining app instances
+    const intervalId = setInterval(async () => {
+      console.log('Periodic participant broadcast...');
+      await fetchAndBroadcastParticipants();
+    }, 5000);
+
+    return () => clearInterval(intervalId);
   }, [state.isConfigured, state.isInMeeting, state.isHost]);
 
   // Listen for participant list broadcasts (non-hosts receive from host)
