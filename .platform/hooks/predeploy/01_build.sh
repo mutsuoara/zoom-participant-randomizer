@@ -1,33 +1,31 @@
 #!/bin/bash
-# Pre-deploy hook to install dependencies and build the application
+# Pre-deploy hook to install production dependencies
+# Note: Application is pre-built locally before deployment
 # This runs before the app starts
 
 set -xe
 
-# Source Node.js environment
-export PATH="/var/app/staging/node_modules/.bin:$PATH"
+cd /var/app/staging
 
 echo "=== Node.js version ==="
 node --version
+
 echo "=== NPM version ==="
 npm --version
-
-echo "=== Current directory ==="
-pwd
-
-cd /var/app/staging
 
 echo "=== Contents of staging directory ==="
 ls -la
 
-echo "=== Installing all dependencies ==="
-npm run install:all
+echo "=== Verifying pre-built dist folders ==="
+ls -la frontend/dist/ || { echo "ERROR: frontend/dist not found - run npm run build locally first"; exit 1; }
+ls -la backend/dist/ || { echo "ERROR: backend/dist not found - run npm run build locally first"; exit 1; }
 
-echo "=== Building application ==="
-npm run build
+echo "=== Installing production dependencies ==="
+# Install root dependencies
+npm ci --production --ignore-scripts 2>/dev/null || npm install --production --ignore-scripts
 
-echo "=== Verifying build output ==="
-ls -la frontend/dist/ || echo "Frontend dist not found"
-ls -la backend/dist/ || echo "Backend dist not found"
+# Install backend runtime dependencies only
+cd backend
+npm ci --production --ignore-scripts 2>/dev/null || npm install --production --ignore-scripts
 
-echo "=== Build complete ==="
+echo "=== Installation complete ==="
