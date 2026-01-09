@@ -1,0 +1,90 @@
+# Elastic Beanstalk Ignore File
+# Files listed here are excluded from deployment packages
+
+# ===========================================
+# Dependencies (reinstalled on EB via npm install)
+# ===========================================
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# ===========================================
+# Environment files (secrets - set in EB console)
+# ===========================================
+.env
+.env.local
+.env.development
+.env.production
+backend/.env
+
+# ===========================================
+# Build artifacts (rebuilt on EB)
+# ===========================================
+# Note: We include dist folders since we build locally before deploy
+# If you prefer to build on EB, uncomment these lines:
+# frontend/dist/
+# backend/dist/
+
+# ===========================================
+# Version control
+# ===========================================
+.git/
+.gitignore
+
+# ===========================================
+# IDE and editor files
+# ===========================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ===========================================
+# OS files
+# ===========================================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ===========================================
+# Development and documentation
+# ===========================================
+.claude/
+agent-docs/
+*.md
+!README.md
+
+# ===========================================
+# Test files
+# ===========================================
+**/*.test.ts
+**/*.test.js
+**/*.spec.ts
+**/*.spec.js
+coverage/
+.nyc_output/
+
+# ===========================================
+# Logs
+# ===========================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===========================================
+# Screenshots and images (dev artifacts)
+# ===========================================
+*.png
+*.jpg
+*.jpeg
+*.gif
+!frontend/public/**
+
+# ===========================================
+# Temporary files
+# ===========================================
+tmp/
+temp/
+*.tmp

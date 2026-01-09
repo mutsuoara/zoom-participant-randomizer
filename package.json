@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "A Zoom App that randomizes meeting participants for determining speaking order",
   "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "cd backend && npm run dev",
