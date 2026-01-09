@@ -85,10 +85,7 @@ function App() {
         </header>
 
         {/* Participant List */}
-        <ParticipantList
-          participants={participants}
-          isHost={isHost}
-        />
+        <ParticipantList participants={participants} />
 
         {/* Randomize Button - Available to all participants */}
         <RandomizeButton

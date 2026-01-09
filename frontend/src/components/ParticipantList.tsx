@@ -2,23 +2,9 @@ import { Participant } from '../hooks/useZoomSdk';
 
 interface ParticipantListProps {
   participants: Participant[];
-  isHost: boolean;
 }
 
-function ParticipantList({ participants, isHost }: ParticipantListProps) {
-  if (!isHost) {
-    return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
-        <h2 className="text-sm font-semibold text-gray-700 mb-2">
-          Participants
-        </h2>
-        <p className="text-gray-500 text-sm">
-          Participant list is only visible to hosts and co-hosts.
-        </p>
-      </div>
-    );
-  }
-
+function ParticipantList({ participants }: ParticipantListProps) {
   if (participants.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
