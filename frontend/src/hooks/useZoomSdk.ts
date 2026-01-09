@@ -170,7 +170,7 @@ export function useZoomSdk() {
 
   // Host: Fetch participants and sync to server periodically
   useEffect(() => {
-    if (!state.isConfigured || !state.isInMeeting || !state.isHost || !state.meetingUUID) return;
+    if (!state.isConfigured || !state.isInMeeting || !state.isHost) return;
 
     // Initial fetch
     fetchAndSyncParticipants();
@@ -188,7 +188,7 @@ export function useZoomSdk() {
     }, 5000);
 
     return () => clearInterval(intervalId);
-  }, [state.isConfigured, state.isInMeeting, state.isHost, state.meetingUUID, fetchAndSyncParticipants]);
+  }, [state.isConfigured, state.isInMeeting, state.isHost, fetchAndSyncParticipants]);
 
   // Non-host: Poll server for participants
   useEffect(() => {
