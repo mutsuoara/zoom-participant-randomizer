@@ -19,13 +19,13 @@ export function useParticipants(initialParticipants: Participant[]) {
 
   // Listen for broadcast messages from other app instances
   useEffect(() => {
-    const handleMessage = (data: { message: string }) => {
+    const handleMessage = (event: { timestamp: number; payload: Record<string, unknown> }) => {
       try {
-        const parsed = JSON.parse(data.message);
-        if (parsed.type === 'randomization_result') {
-          setRandomizedOrder(parsed.order);
+        const data = event.payload;
+        if (data.type === 'randomization_result') {
+          setRandomizedOrder(data.order as Participant[]);
           setHistory(prev => [
-            { timestamp: parsed.timestamp, order: parsed.order },
+            { timestamp: data.timestamp as number, order: data.order as Participant[] },
             ...prev.slice(0, 9), // Keep last 10
           ]);
         }
@@ -60,12 +60,13 @@ export function useParticipants(initialParticipants: Participant[]) {
 
     // Broadcast to all app instances
     try {
+      const payload = {
+        type: 'randomization_result',
+        order: shuffled.map(p => ({ participantUUID: p.participantUUID, screenName: p.screenName, role: p.role })),
+        timestamp: result.timestamp,
+      };
       await zoomSdk.sendMessage({
-        message: JSON.stringify({
-          type: 'randomization_result',
-          order: shuffled,
-          timestamp: result.timestamp,
-        }),
+        payload: payload as Parameters<typeof zoomSdk.sendMessage>[0]['payload'],
       });
     } catch (error) {
       console.error('Failed to broadcast randomization:', error);

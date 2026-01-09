@@ -116,16 +116,16 @@ export function useZoomSdk() {
   }, []);
 
   // Send message to all app instances
-  const broadcastMessage = useCallback(async (data: unknown) => {
+  const broadcastMessage = useCallback(async (data: { [key: string]: string | number | boolean | null | object }) => {
     try {
-      await zoomSdk.sendMessage({ message: JSON.stringify(data) });
+      await zoomSdk.sendMessage({ payload: data as Parameters<typeof zoomSdk.sendMessage>[0]['payload'] });
     } catch (error) {
       console.error('Failed to broadcast message:', error);
     }
   }, []);
 
-  // Send app invitation with message
-  const sendInvitationToAll = useCallback(async (message: string) => {
+  // Send app invitation to all participants
+  const sendInvitationToAll = useCallback(async () => {
     try {
       await zoomSdk.sendAppInvitationToAllParticipants();
       console.log('App invitation sent to all participants');
