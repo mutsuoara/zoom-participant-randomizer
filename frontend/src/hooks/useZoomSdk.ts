@@ -48,16 +48,10 @@ export function useZoomSdk() {
 
   // Sync participants to server (host only)
   const syncParticipantsToServer = useCallback(async (participants: Participant[]) => {
-    if (!meetingUUIDRef.current) {
-      console.log('Cannot sync to server: no meetingUUID');
-      return;
-    }
-
-    const url = `${getApiBaseUrl()}/api/participants/${meetingUUIDRef.current}`;
-    console.log('Syncing participants to server:', url, participants.length, 'participants');
+    if (!meetingUUIDRef.current) return;
 
     try {
-      const response = await fetch(url, {
+      await fetch(`${getApiBaseUrl()}/api/participants/${meetingUUIDRef.current}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -68,8 +62,6 @@ export function useZoomSdk() {
           })),
         }),
       });
-      const data = await response.json();
-      console.log('Synced participants to server, response:', data);
     } catch (error) {
       console.error('Failed to sync participants to server:', error);
     }
@@ -77,27 +69,17 @@ export function useZoomSdk() {
 
   // Fetch participants from server (non-hosts)
   const fetchParticipantsFromServer = useCallback(async () => {
-    if (!meetingUUIDRef.current) {
-      console.log('Cannot fetch from server: no meetingUUID');
-      return;
-    }
-
-    const url = `${getApiBaseUrl()}/api/participants/${meetingUUIDRef.current}`;
-    console.log('Fetching participants from server:', url);
+    if (!meetingUUIDRef.current) return;
 
     try {
-      const response = await fetch(url);
+      const response = await fetch(`${getApiBaseUrl()}/api/participants/${meetingUUIDRef.current}`);
       const data = await response.json();
-      console.log('Server response:', data);
 
       if (data.participants && data.participants.length > 0) {
         setState(prev => ({
           ...prev,
           participants: data.participants as Participant[],
         }));
-        console.log('Updated participants from server:', data.participants.length);
-      } else {
-        console.log('No participants found on server yet');
       }
     } catch (error) {
       console.error('Failed to fetch participants from server:', error);
@@ -152,14 +134,8 @@ export function useZoomSdk() {
           const meetingContext = await zoomSdk.getMeetingUUID();
           meetingUUID = meetingContext.meetingUUID;
           meetingUUIDRef.current = meetingUUID;
-          console.log('Meeting UUID retrieved successfully:', meetingUUID);
         } catch (e) {
-          console.error('Failed to get meeting UUID, using fallback:', e);
-          // Fallback: use participantUUID as a meeting identifier hint
-          // This won't work across participants, but allows debugging
-          meetingUUID = `meeting-${userContext.participantUUID.substring(0, 8)}`;
-          meetingUUIDRef.current = meetingUUID;
-          console.log('Using fallback meeting identifier:', meetingUUID);
+          console.error('Failed to get meeting UUID:', e);
         }
 
         // Get running context
@@ -213,19 +189,7 @@ export function useZoomSdk() {
 
   // Non-host: Poll server for participants
   useEffect(() => {
-    console.log('Non-host poll effect check:', {
-      isConfigured: state.isConfigured,
-      isInMeeting: state.isInMeeting,
-      isHost: state.isHost,
-      meetingUUID: state.meetingUUID
-    });
-
-    if (!state.isConfigured || !state.isInMeeting || state.isHost || !state.meetingUUID) {
-      console.log('Non-host poll effect: conditions not met, skipping');
-      return;
-    }
-
-    console.log('Non-host: Starting to poll server for participants');
+    if (!state.isConfigured || !state.isInMeeting || state.isHost || !state.meetingUUID) return;
 
     // Initial fetch
     fetchParticipantsFromServer();
@@ -235,10 +199,7 @@ export function useZoomSdk() {
       fetchParticipantsFromServer();
     }, 3000);
 
-    return () => {
-      console.log('Non-host: Stopping poll');
-      clearInterval(intervalId);
-    };
+    return () => clearInterval(intervalId);
   }, [state.isConfigured, state.isInMeeting, state.isHost, state.meetingUUID, fetchParticipantsFromServer]);
 
   // Send app invitation to all participants
