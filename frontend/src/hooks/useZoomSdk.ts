@@ -51,7 +51,7 @@ export function useZoomSdk() {
     if (!meetingUUIDRef.current) return;
 
     try {
-      await fetch(`${getApiBaseUrl()}/api/participants/${meetingUUIDRef.current}`, {
+      await fetch(`${getApiBaseUrl()}/api/participants/${encodeURIComponent(meetingUUIDRef.current)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -72,7 +72,7 @@ export function useZoomSdk() {
     if (!meetingUUIDRef.current) return;
 
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/participants/${meetingUUIDRef.current}`);
+      const response = await fetch(`${getApiBaseUrl()}/api/participants/${encodeURIComponent(meetingUUIDRef.current)}`);
       const data = await response.json();
 
       if (data.participants && data.participants.length > 0) {
