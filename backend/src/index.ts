@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.js';
 import healthRoutes from './routes/health.js';
 import participantsRoutes from './routes/participants.js';
+import webhookRoutes from './routes/webhooks.js';
 
 // Load env from parent directory (try multiple locations)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -62,6 +63,7 @@ app.use(session({
 app.use('/api/auth', authRoutes);
 app.use('/api', healthRoutes);
 app.use('/api/participants', participantsRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {

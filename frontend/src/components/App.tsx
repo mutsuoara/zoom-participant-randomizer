@@ -1,8 +1,74 @@
-import { useZoomSdk } from '../hooks/useZoomSdk';
+import { useState } from 'react';
+import { useZoomSdk, DebugInfo } from '../hooks/useZoomSdk';
 import { useParticipants } from '../hooks/useParticipants';
 import ParticipantList from './ParticipantList';
 import RandomizeButton from './RandomizeButton';
 import RandomizedOrder from './RandomizedOrder';
+
+function DebugBanner({ debugInfo, isHost }: { debugInfo: DebugInfo; isHost: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const hasError = debugInfo.registerStatus.startsWith('error') ||
+    debugInfo.syncStatus.startsWith('error') ||
+    debugInfo.pollStatus.startsWith('error');
+  const borderColor = hasError ? 'border-red-400' : 'border-blue-300';
+  const bgColor = hasError ? 'bg-red-50' : 'bg-blue-50';
+
+  return (
+    <div className={`${bgColor} ${borderColor} border rounded-lg p-2 mb-4 text-xs font-mono`}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left flex justify-between items-center"
+      >
+        <span className="font-bold text-gray-700">
+          DEBUG {hasError ? '(!)' : ''}
+        </span>
+        <span className="text-gray-400">{expanded ? 'collapse' : 'expand'}</span>
+      </button>
+
+      {/* Always-visible summary */}
+      <div className="mt-1 space-y-0.5 text-gray-600">
+        <div>Role: <span className="font-semibold">{debugInfo.role ?? 'unknown'}</span></div>
+        <div>UUID: <span className="font-semibold">{debugInfo.meetingUUID ?? 'null'}</span></div>
+        <div>
+          Reg:{' '}
+          <span className={`font-semibold ${debugInfo.registerStatus.startsWith('error') ? 'text-red-600' : 'text-green-700'}`}>
+            {debugInfo.registerStatus}
+          </span>
+        </div>
+        <div>
+          Poll:{' '}
+          <span className={`font-semibold ${debugInfo.pollStatus.startsWith('error') ? 'text-red-600' : 'text-green-700'}`}>
+            {debugInfo.pollStatus}
+          </span>
+        </div>
+        <div>
+          Webhook:{' '}
+          <span className="font-semibold text-green-700">
+            {debugInfo.webhookCount} tracked
+          </span>
+        </div>
+        {isHost && (
+          <div>
+            Sync:{' '}
+            <span className={`font-semibold ${debugInfo.syncStatus.startsWith('error') ? 'text-red-600' : 'text-green-700'}`}>
+              {debugInfo.syncStatus}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Expandable log */}
+      {expanded && debugInfo.logs.length > 0 && (
+        <div className="mt-2 border-t border-gray-300 pt-1 max-h-40 overflow-y-auto">
+          {debugInfo.logs.map((log, i) => (
+            <div key={i} className="text-gray-500 leading-tight">{log}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function App() {
   const {
@@ -13,6 +79,7 @@ function App() {
     participants: zoomParticipants,
     error,
     sendToChat,
+    debugInfo,
   } = useZoomSdk();
 
   const {
@@ -67,6 +134,9 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-md mx-auto p-4">
+        {/* Debug Banner */}
+        <DebugBanner debugInfo={debugInfo} isHost={isHost} />
+
         {/* Header */}
         <header className="mb-6">
           <h1 className="text-xl font-bold text-gray-900">
